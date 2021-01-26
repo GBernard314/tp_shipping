@@ -1,0 +1,162 @@
+module Basics where
+
+-- | Write a functions that adds two Int.
+add :: Int -> Int -> Int
+add a b = a + b
+
+-- | Write a functions that divides two Int.
+divide :: Int -> Int -> Int
+divide a b = a `div` b
+
+-- This is a sum type. A value of type "IntResult" can either be
+-- a IntSuccess containing a Int, or a IntFailure.
+--
+-- This will be used to identify operations that fail (for example, because
+-- of a divide by 0 operation).
+data IntResult
+  = IntSuccess Int
+  | IntFailure
+  deriving (Show, Eq)
+
+-- | Rewrite a function that divides two Ints, but that explicitely
+-- fails when it divides by 0, or explicitely succeeds.
+divide' :: Int -> Int -> IntResult
+divide' a b = case b of
+  0 -> IntFailure
+  _ -> IntSuccess (div a b)
+
+-- | This is a generic (parametric) type. It represents something that can
+-- either fail, or succeed with a value of type "a".
+data Result a
+  = Success a
+  | Failure
+  deriving (Show, Eq)
+
+-- | Write this function again, but this time using the generic type.
+divide'' :: Int -> Int -> Result Int
+divide'' a b = case b of
+  0 -> Failure
+  _ -> Success (div a b)
+
+-- | Represent the kind of expressions one can compute on a pocket calculator.
+data Operation
+  = Add Operation Operation
+  | Sub Operation Operation
+  | Mul Operation Operation
+  | Div Operation Operation
+  | Value Int
+  deriving (Show, Eq)
+
+-- | This is (5 * 3.4) + 8
+-- run it in GHCi
+example1 :: Int
+example1 = eval (Add (Mul (Value 5) (Value 3)) (Value 8))
+
+-- | What is this ?
+example2 :: Int
+example2 = eval (Div (Mul (Value 5) (Value 3)) (Value 0))
+
+-- | From an operation, compute its value.
+eval :: Operation -> Int
+eval o = case o of
+  Value x -> x
+  Add x y -> eval x + eval y
+  Sub x y -> eval x - eval y
+  Mul x y -> eval x * eval y
+  Div x y -> div (eval x) (eval y)
+
+-- | Try it in the REPL with example2!
+-- Now write the correct function:
+eval' :: Operation -> Result Int
+eval' o = case o of
+  Value x -> Success x
+  Add x y ->
+    case (eval' x, eval' y) of
+      (Success x, Success y) -> Success (x + y)
+      (_, _) -> Failure
+  Sub x y ->
+    case (eval' x, eval' y) of
+      (Success x, Success y) -> Success (x - y)
+      (_, _) -> Failure
+  Mul x y ->
+    case (eval' x, eval' y) of
+      (Success x, Success y) -> Success (x * y)
+      (_, _) -> Failure
+  Div x y ->
+    case (eval' x, eval' y) of
+      (Success x, Success y) -> divide'' x y
+      (_, _) -> Failure
+
+-- | Examples to run in GHCi
+example1' :: Result Int
+example1' = eval' (Add (Mul (Value 5) (Value 3)) (Value 8))
+
+example2' :: Result Int
+example2' = eval' (Div (Mul (Value 5) (Value 3)) (Value 0))
+
+-- | A (linked) list is either empty, or contains an element (head) and a list (tail).
+data List a
+  = Empty
+  | Cons a (List a)
+  deriving (Show)
+
+-- | Returns the first element of a list.
+listHead :: List a -> Result a
+listHead l = case l of
+  Empty -> Failure
+  Cons h _ -> Success h
+
+head1 :: Result Int
+head1 = listHead Empty -- Failure
+
+head2 :: Result Int
+head2 = listHead (Cons 5 (Cons 4 Empty)) -- success 5
+
+-- | Returns the tail of a list.
+listTail :: List a -> Result (List a)
+listTail l = case l of
+  Empty -> Failure
+  Cons _ t -> Success t
+
+tail1 :: Result (List Int)
+tail1 = listTail Empty -- Failure
+
+tail2 :: Result (List Int)
+tail2 = listTail (Cons 5 (Cons 4 Empty)) -- success (Cons 4 Empty)
+
+-- | Sum of all integers in a list.
+listSum :: List Int -> Int
+listSum l = case l of
+  Empty -> 0
+  Cons h t -> h + listSum t
+
+-- | Compare two lists for equality.
+listEq :: Eq a => List a -> List a -> Bool
+listEq l1 l2 = case (l1, l2) of
+  (Empty, Empty) -> True
+  (Cons h1 t1, Cons h2 t2) -> h1 == h2 && listEq t1 t2
+  _ -> False
+
+-- | Converts our list type into Haskell's built-in list type.
+toList :: List a -> [a]
+toList l = case l of
+  Empty -> []
+  Cons h t -> h : toList t
+
+-- Given a function, converts all elements of a list.
+lmap ::
+  (a -> b) ->
+  List a ->
+  List b
+lmap f l = case l of
+  Empty -> Empty
+  Cons h t -> Cons (f h) (lmap f t)
+
+-- optional assignment
+-- Uncomment the relevant test if you wrote it!
+ltraverse ::
+  Applicative f =>
+  (a -> f b) ->
+  List a ->
+  f (List b)
+ltraverse = undefined
