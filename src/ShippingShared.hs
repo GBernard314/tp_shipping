@@ -1,5 +1,7 @@
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module ShippingShared where
+
 
 import qualified Data.Map.Strict as M
 

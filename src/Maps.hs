@@ -1,4 +1,6 @@
 module Maps where
+groupe :: [String]
+groupe = ["DESOOMER Pierre", "BERNARD Guillaume"]
 
 -- | Maps are lists of key/value pairs
 

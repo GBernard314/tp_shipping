@@ -1,4 +1,6 @@
 module Basics where
+groupe :: [String]
+groupe = ["DESOOMER Pierre", "BERNARD Guillaume"]
 
 -- | Write a functions that adds two Int.
 add :: Int -> Int -> Int

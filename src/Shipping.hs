@@ -1,5 +1,7 @@
 module Shipping (module ShippingShared, module Shipping) where
 
+  
+
 import Data.List (foldl')
 import qualified Data.Map.Strict as M
 import ShippingShared
@@ -10,12 +12,22 @@ import ShippingShared
 
 -- | This is YOUR data type that defines how your state is represented.
 -- Choose carefully!
+
+groupe :: [String]
+groupe = ["DESOOMER Pierre", "BERNARD Guillaume"]
+
 data ShippingState = ShippingState
-  {
-    _curday :: Day,
-    _ord :: [(OrderId, Bool)],
-    _sent :: M.Map OrderId Bool
+  { _curday :: Day,
+    _ord :: [(OrderId, OrderInformation)],
+    _sent :: [(OrderId, ParcelState, Day)]
   }
+  deriving (Show)
+
+data ParcelState
+  = Handled OrderId TrackingId
+  | Delivered OrderId TrackingId
+  | Returned TrackingId
+  | Awaiting OrderId
   deriving (Show)
 
 -- | Customize this if you want nicer debug messages
@@ -51,7 +63,7 @@ getDay state = _curday state
 
 -- | create the initial shipping state, with the current day as input.
 initialShippingState :: Day -> ShippingState
-initialShippingState d = ShippingState d [] M.empty
+initialShippingState d = ShippingState d [] []
 
 -- | handle the order messageShippingState
 order ::
@@ -64,18 +76,20 @@ order ::
   -- | updated stock, shippingstate, and possibly messages
   (Stock, ShippingState, Maybe ShippingInformation)
 order ordId ordInf sto (ShippingState day ord sent) = case decreaseStock sto (_orderStock ordInf) of
-  Nothing -> (sto, ShippingState day ord sent, Nothing)
-  Just val -> (val,ShippingState day (ord++[(ordId, True)]) (M.insert ordId False sent), Just (ShippingInformation ordId (_orderDest ordInf)))
-
+  Nothing -> (sto, ShippingState day (ord ++ [(ordId, ordInf)]) sent, Nothing)
+  Just val -> (val, ShippingState day (ord ++ [(ordId, ordInf)]) (sent ++ [(ordId, (Shipping.Awaiting ordId), day)]), Just (ShippingInformation ordId (_orderDest ordInf)))
 
 -- | return the list, in order of arrival, of the identifiers of orders waiting for stock to be replenished
 getWaitingOrders :: ShippingState -> [OrderId]
-getWaitingOrders shipSt = case _ord shipSt of
-  [(_, False)] -> undefined
-  _ -> undefined
+getWaitingOrders shipSt = map fst (_ord shipSt)
 
 getWaitingTracking :: ShippingState -> [(OrderId, Day)]
-getWaitingTracking = error "complete the getWaitingTracking function"
+getWaitingTracking shipSt = go (_sent shipSt)
+  where
+    go l = case l of
+      (_, Awaiting oid, day) : xs -> (oid, day) : go xs
+      _ : xs -> go xs
+      [] -> []
 
 -- | handle new stock being received
 -- do not forget the requests must be served *in order*
@@ -89,7 +103,17 @@ restock ::
   ShippingState ->
   -- | updated stock, shippingstate, and possibly shipping information
   (Stock, ShippingState, [ShippingInformation])
-restock = error "complete the restock function"
+restock stoCurr stoRec shipSt = go (newstock, shipSt, [])(_ord shipSt)
+  where
+    newstock = increaseStock stoCurr stoRec
+    go (curStock, curStt, curShipping) lst = 
+      case lst of 
+        [] -> (curStock, curStt, curShipping)
+        (orderid, orderinfo):lst' ->
+          case decreaseStock curStock (_orderStock orderinfo) of
+            Nothing -> (curStock, curStt, curShipping)
+            Just stock' -> undefined
+
 
 -- | This function increases the current day in ShippingState.
 -- In order to get the full grade, you should implement this function so that it takes action when things get lost.
@@ -104,13 +128,29 @@ advanceDay :: Stock -> ShippingState -> (Stock, ShippingState, [OutEvent])
 advanceDay = error "complete the advanceDay function"
 
 getWaitingPickup :: ShippingState -> [(OrderId, Day)]
-getWaitingPickup = error "complete the getWaitingPickup function"
+getWaitingPickup shipSt = go (_sent shipSt)
+  where
+    go l = case l of
+      (_, Handled oid _, day) : xs -> (oid, day) : go xs
+      _ : xs -> go xs
+      [] -> []
 
 getReceived :: ShippingState -> [(OrderId, Day)]
-getReceived = error "complete the getReceived function"
+getReceived shipSt = go (_sent shipSt)
+  where
+    go l = case l of
+      (_, Delivered oid _, day) : xs -> (oid, day) : go xs
+      _ : xs -> go xs
+      [] -> []
 
 getInTransit :: ShippingState -> [(OrderId, Day)]
-getInTransit = error "complete the getInTransit function"
+getInTransit shipSt = go (_sent shipSt)
+  where
+    go l = case l of
+      (_, Handled oid _, day) : xs -> (oid, day) : go xs
+      (oid, Returned _, day) : xs -> (oid, day) : go xs
+      _ : xs -> go xs
+      [] -> []
 
 handleMessage ::
   -- | initial stock before message handling
